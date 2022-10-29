@@ -120,7 +120,7 @@ async function startQuiz(quizId) {
 async function endQuiz(quizId, score) {
   try {
     if (!score) score = 0;
-    const result = await contract.methods
+    await contract.methods
       .endQuiz(quizId, score)
       .send({ from: kit.defaultAccount });
     return true;
