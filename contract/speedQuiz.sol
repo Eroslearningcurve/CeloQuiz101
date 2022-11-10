@@ -23,6 +23,7 @@ contract SpeedQuiz {
         address creator;
         string title;
         Question[] questions;
+        bytes32 rewardPhrase;
         uint256 createdAt;
         uint256 timePerQuestion;
         uint256 totalTime;
@@ -37,14 +38,14 @@ contract SpeedQuiz {
     }
 
     // quiz information
-    mapping(uint256 => QuizCategory) internal quizzes;
-    mapping(uint256 => bool) internal quizExists;
+    mapping(uint256 => QuizCategory) private quizzes;
+    mapping(uint256 => bool) private quizExists;
 
     // player information
     mapping(address => mapping(uint256 => QuizState)) playerGameState;
-    mapping(address => Scores[]) internal playerHistory;
-    mapping(address => uint256[]) internal playerQuizzes;
-    mapping(address => bool) internal isPlayer;
+    mapping(address => Scores[]) private playerHistory;
+    mapping(address => uint256[]) private playerQuizzes;
+    mapping(address => bool) private isPlayer;
 
     constructor(
         uint256 _gameFEE,
@@ -63,38 +64,47 @@ contract SpeedQuiz {
         benchMarkPercent = _benchMarkPercent;
     }
 
-    // pay fee to add category
-    function createNewQuiz(string memory _title, uint256 _timePerQuestion)
-        public
-        payable
-    {
-        require(msg.value >= addFee, "amount not up to add fee");
+    /**
+     * @dev allow users to add their own quiz to the platform
+     * @notice A fee needs to be paid in order to add the quiz
+     */
+    function createNewQuiz(
+        string calldata _title,
+        uint256 _timePerQuestion,
+        bytes32 _rewardPhrase
+    ) public payable {
+        require(bytes(_title).length > 0, "Empty title");
+        require(
+            _timePerQuestion > 0 && _timePerQuestion <= 120,
+            "Invalid time set for each question"
+        );
+        require(msg.value == addFee, "amount not up to add fee");
 
         if (!isPlayer[msg.sender]) {
             addPlayer();
         }
-
-        QuizCategory storage _newQuiz = quizzes[quizIndex];
+        uint256 index = quizIndex;
+        quizIndex++;
+        QuizCategory storage _newQuiz = quizzes[index];
         _newQuiz.creator = msg.sender;
+        _newQuiz.rewardPhrase = _rewardPhrase;
         _newQuiz.title = _title;
         _newQuiz.createdAt = block.timestamp;
         _newQuiz.timePerQuestion = _timePerQuestion;
-        _newQuiz.totalTime = 0;
-        _newQuiz.noOfQuizAttempts = 0;
-        _newQuiz.successfulAttempts = 0;
-
-        playerQuizzes[msg.sender].push(quizIndex);
-        quizExists[quizIndex] = true;
-
-        quizIndex++;
+        playerQuizzes[msg.sender].push(index);
+        quizExists[index] = true;
     }
 
+    /**
+     * @dev allow users to add questions to their quizzes
+     */
     function addQuestion(
         uint256 _quizId,
-        string memory _question,
-        string[] memory _options,
-        string memory _answer
-    ) public checkIfQuizExists(_quizId) checkIfCreator(_quizId) {
+        string calldata _question,
+        string[] calldata _options,
+        string calldata _answer
+    ) public checkIfQuizExists(_quizId) {
+        require(quizzes[_quizId].creator == msg.sender, "Only Creator");
         QuizCategory storage quiz = quizzes[_quizId];
         quiz.totalTime += quiz.timePerQuestion;
         quiz.questions.push(Question(_question, _options, _answer));
@@ -103,22 +113,33 @@ contract SpeedQuiz {
     function getQuiz(uint256 _quizId)
         public
         view
+        checkIfQuizExists(_quizId)
         returns (QuizCategory memory)
     {
         return quizzes[_quizId];
     }
 
+    // adds sender as a player
     function addPlayer() internal {
         isPlayer[msg.sender] = true;
     }
 
+    /**
+     * @dev allow users to participate into quizzes and potentially win a reward
+     * @notice a fee needs to be paid to participate in the quiz
+     */
     function startQuiz(uint256 _quizId)
         public
         payable
         ensureState(_quizId, QuizState.NOT_STARTED)
     {
-        require(msg.value >= gameFee, "amount not up to game fee");
-        require(quizzes[_quizId].totalTime > 0, "Quiz is not valid yet");
+        QuizCategory storage currentQuiz = quizzes[_quizId];
+        require(
+            currentQuiz.creator != msg.sender,
+            "You can't participate in your quizzes"
+        );
+        require(msg.value == gameFee, "amount not up to game fee");
+        require(currentQuiz.totalTime > 0, "Quiz is not valid yet");
 
         if (!isPlayer[msg.sender]) {
             addPlayer();
@@ -126,30 +147,33 @@ contract SpeedQuiz {
 
         playerGameState[msg.sender][_quizId] = QuizState.IN_PLAY;
 
-        quizzes[_quizId].noOfQuizAttempts++;
+        currentQuiz.noOfQuizAttempts++;
     }
 
-    function endQuiz(uint256 _quizId, uint256 _score)
-        public
-        ensureState(_quizId, QuizState.IN_PLAY)
-    {
+    /**
+     * @dev allow users participating in a quiz to end their participation
+     * @param _score the total score of user for the quiz
+     * @param rewardphrase the reward phrase required to receive the reward if the participation was a success
+     */
+    function endQuiz(
+        uint256 _quizId,
+        uint256 _score,
+        bytes32 rewardphrase
+    ) public payable ensureState(_quizId, QuizState.IN_PLAY) {
         QuizCategory memory quiz = quizzes[_quizId];
-
         playerHistory[msg.sender].push(
             Scores(_quizId, block.timestamp, _score)
         );
 
-        uint256 benchMark = benchMarkPercent * 100;
-        uint256 scoreMark = _score * 100;
-
-        if (scoreMark >= benchMark) {
+        playerGameState[msg.sender][_quizId] = QuizState.NOT_STARTED;
+        if (_score >= benchMarkPercent) {
+            require(rewardphrase == quiz.rewardPhrase);
             uint256 reward = gameFee * 2;
             // transfer amount
-            payable(msg.sender).transfer(reward);
-
+            (bool success, ) = payable(msg.sender).call{value: reward}("");
+            require(success, "Transfer failed");
             quiz.successfulAttempts++;
         }
-        playerGameState[msg.sender][_quizId] = QuizState.NOT_STARTED;
     }
 
     function getPlayerHistory(address _player)
@@ -188,17 +212,8 @@ contract SpeedQuiz {
         return addFee;
     }
 
-    function getQuizBenchMark(uint256 _quizId) public view returns (uint256) {
-        return benchMarkPercent * quizzes[_quizId].totalTime;
-    }
-
     function checkQuiz(uint256 _quizId) public view returns (bool) {
         return quizExists[_quizId];
-    }
-
-    modifier checkIfCreator(uint256 _quizId) {
-        require(quizzes[_quizId].creator == msg.sender, "Only Creator");
-        _;
     }
 
     modifier checkIfQuizExists(uint256 _quizId) {
