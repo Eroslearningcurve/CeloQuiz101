@@ -28,6 +28,7 @@ contract SpeedQuiz {
         uint256 totalTime;
         uint256 successfulAttempts;
         uint256 noOfQuizAttempts;
+        uint256 downvotes;
     }
 
     struct Scores {
@@ -82,6 +83,7 @@ contract SpeedQuiz {
         _newQuiz.totalTime = 0;
         _newQuiz.noOfQuizAttempts = 0;
         _newQuiz.successfulAttempts = 0;
+        _newQuiz.downvotes = 0;
 
         playerQuizzes[msg.sender].push(quizIndex);
         quizExists[quizIndex] = true;
@@ -110,6 +112,10 @@ contract SpeedQuiz {
 
     function addPlayer() internal {
         isPlayer[msg.sender] = true;
+    }
+
+    function downVote(uint256 _quizId)public checkIfQuizExists(_quizId){
+        quizzes[_quizId].downvotes++;
     }
 
     function startQuiz(uint256 _quizId)
@@ -150,6 +156,10 @@ contract SpeedQuiz {
             quiz.successfulAttempts++;
         }
         playerGameState[msg.sender][_quizId] = QuizState.NOT_STARTED;
+    }
+
+    function deleteQuiz(uint256 _quizId)public checkIfCreator(_quizId){
+        delete quizzes[_quizId];
     }
 
     function getPlayerHistory(address _player)

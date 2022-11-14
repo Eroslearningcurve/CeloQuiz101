@@ -149,7 +149,7 @@ query("#newQuizBtn").addEventListener("click", async (e) => {
   const params = [id("quizTitle").value, id("timePerQuestion").value];
   notification(`⌛ Adding "${params[0]}"...`);
   try {
-    const result = await contract.methods
+    await contract.methods
       .createNewQuiz(...params)
       .send({ from: kit.defaultAccount, value: fee });
     notification(`🎉 You successfully added "${params[0]}".`);
