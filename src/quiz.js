@@ -295,6 +295,10 @@ let displayInitialData = (quizChosen) => {
 
   // start quiz sequence
   classes("start-quiz")[0].addEventListener("click", async () => {
+    if(quizChosen.creator == kit.defaultAccount){
+      notification(`⚠️ You can't participate in your quiz.`);
+      return;  
+    }
     notification(`⌛ Starting Quiz...`);
     let successful = await startQuiz(quizChosen.id);
     if (successful) {
