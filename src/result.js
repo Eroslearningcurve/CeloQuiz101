@@ -6,7 +6,14 @@ classes("home")[0].addEventListener("click", () => {
 });
 
 window.addEventListener("load", () => {
-  let userScore = sessionStorage.getItem("userScore");
+  let userScore;
+  if (sessionStorage.getItem("userScore") !== null) {
+    userScore = sessionStorage.getItem("userScore");
+  } else {
+    userScore = 0;
+  }
+  sessionStorage.removeItem("userScore");
+
   id("result").innerHTML = `${userScore}%`;
   if (userScore <= 50) {
     id("feedback").innerHTML = "Try harder next time";

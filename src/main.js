@@ -1,13 +1,14 @@
 import Web3 from "web3";
 import { newKitFromWeb3 } from "@celo/contractkit";
+import { sha3_256 } from "js-sha3";
 import speedQuizAbi from "../contract/speedQuiz.abi.json";
 const ERC20_DECIMALS = 18;
-const quizHubCA = "0xBb16Ce837af6601612A2eE9F647829F514691be9";
+const quizHubCA = "0xeD9Ee3cCc95f685AD366ca86358C72817Db9C192";
 
 let contract;
 let kit;
 let playerQuizzes;
-let playerHistory;
+let playerHistory = [];
 
 let id = (id) => document.getElementById(id);
 let classes = (classes) => document.getElementsByClassName(classes);
@@ -21,6 +22,11 @@ function notification(_text) {
 function notificationOff() {
   document.querySelector(".alert").style.display = "none";
 }
+
+// for converting utf8 to b64
+export const utf8ToBase64String = (utf8String) => {
+  return Buffer.from(utf8String, "utf8").toString("base64");
+};
 
 const connectCeloWallet = async function () {
   if (window.celo) {
@@ -102,10 +108,28 @@ const renderQuizzes = function () {
 };
 
 const getPlayerHistory = async function () {
-  playerHistory = await contract.methods
-    .getPlayerHistory(kit.defaultAccount)
+  let attemptedQuizzes = await contract.methods
+    .getPlayerAttemptedQuizzes(kit.defaultAccount)
     .call();
 
+  console.log(attemptedQuizzes);
+
+  const _history = [];
+  for (let i = 0; i < attemptedQuizzes.length; i++) {
+    let _info = new Promise(async (resolve, reject) => {
+      let info = await contract.methods
+        .getPlayerQuizInfo(kit.defaultAccount, attemptedQuizzes[i])
+        .call();
+      resolve({
+        quizId: i,
+        lastDateTaken: info.lastDateTaken,
+        attempts: info.attempts,
+        highScore: info.highScore,
+      });
+    });
+    _history.push(_info);
+  }
+  playerHistory = await Promise.all(_history);
   renderHistory();
 };
 
@@ -113,13 +137,14 @@ const renderHistory = function () {
   $("#playerHistoryRow").html("");
   for (let i = 0; i < playerHistory.length; i++) {
     let history = playerHistory[i];
-    let date = new Date(history.dateTaken * 1000);
+    let date = new Date(history.lastDateTaken * 1000);
     $("#playerHistoryRow").append(
       `<tr>
           <td id="sn"> ${i + 1}</td>
           <td id="quizid">Quiz-${history.quizId}</td>
           <td id="createdOn">${date}</td>
-          <td id="questions">${history.score}</td>
+          <td id="attempts">${history.attempts}</td>
+          <td id="questions">${history.highScore}</td>
         </tr>`
     );
   }
@@ -127,38 +152,54 @@ const renderHistory = function () {
 let quizSelected = classes("find-quiz");
 let quizValue = classes("input-quiz-value");
 
-quizSelected[0].addEventListener("click", async (e) => {
-  e.preventDefault();
+quizSelected[0].addEventListener(
+  "click",
+  async (e) => {
+    e.preventDefault();
 
-  notification(`⌛ Looking For "${quizValue[0].value}"...`);
-  const quizId = quizValue[0].value.match(/(\d+)/);
+    notification(`⌛ Looking For "${quizValue[0].value}"...`);
+    const quizId = quizValue[0].value.match(/(\d+)/);
 
-  let exists = await contract.methods.checkQuiz(quizId[0]).call();
+    let exists = await contract.methods.checkQuiz(quizId[0]).call();
 
-  if (exists) {
-    window.location = `quiz.html?quiz=${quizId[0]}`;
-  } else {
-    notification("⚠️ Invalid Quiz ID");
-  }
+    if (exists) {
+      window.location = `quiz.html?quiz=${quizId[0]}`;
+    } else {
+      notification("⚠️ Invalid Quiz ID");
+    }
 
-  id("quizID").value = "";
-});
+    id("quizID").value = "";
+  },
+  { once: true }
+);
 
-query("#newQuizBtn").addEventListener("click", async (e) => {
-  let fee = await contract.methods.getAddFee().call();
-  const params = [id("quizTitle").value, id("timePerQuestion").value];
-  notification(`⌛ Adding "${params[0]}"...`);
-  try {
-    await contract.methods
-      .createNewQuiz(...params)
-      .send({ from: kit.defaultAccount, value: fee });
-    notification(`🎉 You successfully added "${params[0]}".`);
-    setTimeout(getplayerQuizzes(), 2000);
-    getBalance();
-  } catch (error) {
-    notification(`⚠️ ${error}.`);
-  }
-});
+query("#newQuizBtn").addEventListener(
+  "click",
+  async (e) => {
+    let fee = await contract.methods.getAddFee().call();
+    const rewardPhrase = sha3_256(
+      utf8ToBase64String(id("quizTitle").value.toUpperCase())
+    );
+    const params = [
+      id("quizTitle").value,
+      id("timePerQuestion").value,
+      `0x${rewardPhrase}`,
+    ];
+    console.log(params);
+    notification(`⌛ Adding "${params[0]}"...`);
+    try {
+      const result = await contract.methods
+        .createNewQuiz(...params)
+        .send({ from: kit.defaultAccount, value: fee });
+      notification(`🎉 You successfully added "${params[0]}".`);
+      setTimeout(getplayerQuizzes(), 2000);
+      setTimeout(getBalance(), 2000);
+    } catch (error) {
+      notification(`⚠️ ${error}.`);
+    }
+  },
+  { once: true }
+);
 
 window.addEventListener("load", async () => {
   notification("⌛ Loading...");

@@ -78,6 +78,11 @@
                 "internalType": "uint256",
                 "name": "_timePerQuestion",
                 "type": "uint256"
+            },
+            {
+                "internalType": "bytes32",
+                "name": "_rewardPhrase",
+                "type": "bytes32"
             }
         ],
         "name": "createNewQuiz",
@@ -91,9 +96,19 @@
                 "internalType": "uint256",
                 "name": "_quizId",
                 "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "_score",
+                "type": "uint256"
+            },
+            {
+                "internalType": "bytes32",
+                "name": "_rewardPhrase",
+                "type": "bytes32"
             }
         ],
-        "name": "downVote",
+        "name": "endQuiz",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"
@@ -104,16 +119,11 @@
                 "internalType": "uint256",
                 "name": "_quizId",
                 "type": "uint256"
-            },
-            {
-                "internalType": "uint256",
-                "name": "_score",
-                "type": "uint256"
             }
         ],
-        "name": "endQuiz",
+        "name": "fundQuiz",
         "outputs": [],
-        "stateMutability": "nonpayable",
+        "stateMutability": "payable",
         "type": "function"
     },
     {
@@ -150,29 +160,12 @@
                 "type": "address"
             }
         ],
-        "name": "getPlayerHistory",
+        "name": "getPlayerAttemptedQuizzes",
         "outputs": [
             {
-                "components": [
-                    {
-                        "internalType": "uint256",
-                        "name": "quizId",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "dateTaken",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "score",
-                        "type": "uint256"
-                    }
-                ],
-                "internalType": "struct SpeedQuiz.Scores[]",
+                "internalType": "uint256[]",
                 "name": "",
-                "type": "tuple[]"
+                "type": "uint256[]"
             }
         ],
         "stateMutability": "view",
@@ -191,12 +184,34 @@
                 "type": "uint256"
             }
         ],
-        "name": "getPlayerQuizState",
+        "name": "getPlayerQuizInfo",
         "outputs": [
             {
-                "internalType": "enum SpeedQuiz.QuizState",
+                "components": [
+                    {
+                        "internalType": "uint256",
+                        "name": "highScore",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "attempts",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "lastDateTaken",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "enum SpeedQuiz.QuizState",
+                        "name": "state",
+                        "type": "uint8"
+                    }
+                ],
+                "internalType": "struct SpeedQuiz.PlayerQuizInfo",
                 "name": "",
-                "type": "uint8"
+                "type": "tuple"
             }
         ],
         "stateMutability": "view",
@@ -292,8 +307,13 @@
                     },
                     {
                         "internalType": "uint256",
-                        "name": "downvotes",
+                        "name": "quizPool",
                         "type": "uint256"
+                    },
+                    {
+                        "internalType": "bytes32",
+                        "name": "rewardPhrase",
+                        "type": "bytes32"
                     }
                 ],
                 "internalType": "struct SpeedQuiz.QuizCategory",
@@ -347,6 +367,24 @@
         "name": "startQuiz",
         "outputs": [],
         "stateMutability": "payable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "_quizId",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "_amount",
+                "type": "uint256"
+            }
+        ],
+        "name": "withdrawFunds",
+        "outputs": [],
+        "stateMutability": "nonpayable",
         "type": "function"
     }
 ]

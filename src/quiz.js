@@ -1,8 +1,10 @@
 import Web3 from "web3";
 import { newKitFromWeb3 } from "@celo/contractkit";
+import BigNumber from "bignumber.js";
+import { sha3_256 } from "js-sha3";
 import speedQuizAbi from "../contract/speedQuiz.abi.json";
 const ERC20_DECIMALS = 18;
-const quizHubCA = "0xBb16Ce837af6601612A2eE9F647829F514691be9";
+const quizHubCA = "0xeD9Ee3cCc95f685AD366ca86358C72817Db9C192";
 
 // defining variables
 let contract;
@@ -64,9 +66,10 @@ async function loadQuestions(quizId) {
 const getPlayerQuizState = async function (quizId) {
   try {
     const player = kit.defaultAccount;
-    playerQuizState = await contract.methods
-      .getPlayerQuizState(player, quizId)
+    let playerInfo = await contract.methods
+      .getPlayerQuizInfo(player, quizId)
       .call();
+    playerQuizState = playerInfo.state;
   } catch (e) {
     console.log(e);
   }
@@ -86,7 +89,6 @@ export const utf8ToBase64String = (utf8String) => {
 async function getQuiz(quizId) {
   let _quiz = new Promise(async (resolve, reject) => {
     let p = await contract.methods.getQuiz(quizId).call();
-    console.log(p);
     resolve({
       id: quizId,
       title: p.title,
@@ -95,6 +97,7 @@ async function getQuiz(quizId) {
       createdAt: p.createdAt,
       timePerQuestion: p.timePerQuestion,
       totalTime: p.totalTime,
+      quizPool: p.quizPool,
     });
   });
 
@@ -117,14 +120,18 @@ async function startQuiz(quizId) {
 }
 
 // function to end quiz
-async function endQuiz(quizId, score) {
+async function endQuiz(quizTitle, quizId, score) {
+  const rewardPhrase = sha3_256(utf8ToBase64String(quizTitle.toUpperCase()));
   try {
-    if (!score) score = 0;
-    await contract.methods
-      .endQuiz(quizId, score)
+    if (!score || score < 0) score = 5;
+    const params = [quizId, score, `0x${rewardPhrase}`];
+    console.log(params);
+    const result = await contract.methods
+      .endQuiz(...params)
       .send({ from: kit.defaultAccount });
     return true;
   } catch (error) {
+    console.log(error);
     notification(`⚠️ ${error}.`);
     return false;
   }
@@ -137,11 +144,18 @@ function calcScore(
   noOfQuestions,
   questionAnswersGiven
 ) {
-  // weight given to correct answers is 25% and speed is 75%
-  const userscore =
-    (questionAnswersGiven / noOfQuestions) * 25 +
-    (remainingtimeForQuiz / totalTime) * 75;
-  return userscore;
+  let score;
+  if (sessionStorage.getItem("userScore") !== null) {
+    score = sessionStorage.getItem("userScore");
+  } else {
+    // weight given to correct answers is 10% and speed is 90%
+    score =
+      (questionAnswersGiven / noOfQuestions) * 10 +
+      (remainingtimeForQuiz / totalTime) * 90;
+
+    sessionStorage.setItem("userScore", Math.round(score));
+  }
+  return score;
 }
 
 // to check answer
@@ -157,16 +171,6 @@ let checkAnswer = (answerGiven, rightAnswer, options) => {
     }
     //lose 10 seconds for every wrong answer
     remainingtimeForQuiz -= 10;
-    options.map((option) => {
-      if (option === base64ToUTF8String(rightAnswer)) {
-        try {
-          id(option).style.background = "#32CD32";
-          id(option).style.color = "#fff";
-        } catch (err) {
-          console.log(err);
-        }
-      }
-    });
   }
 };
 
@@ -200,6 +204,7 @@ let renderQuestion = (questionDetail) => {
 let displayInitialData = (quizChosen) => {
   id("quiz-title").innerHTML = quizChosen.title;
   let date = new Date(quizChosen.createdAt * 1000);
+  let noOfQuestions = quizChosen.questions.length;
   date = new Date(date.getTime());
 
   id("created-at").innerHTML = date;
@@ -218,7 +223,11 @@ let displayInitialData = (quizChosen) => {
 
   classes("container-box")[0].style.display = "flex";
 
-  if (quizChosen.totalTime == 0) {
+  if (
+    new BigNumber(quizChosen.quizPool) <
+      new BigNumber(5).shiftedBy(ERC20_DECIMALS) ||
+    noOfQuestions < 5
+  ) {
     id("rules-box").style.display = "none";
     id("info-box").style.display = "flex";
   } else {
@@ -226,16 +235,33 @@ let displayInitialData = (quizChosen) => {
     id("info-box").style.display = "none";
   }
 
+  let quizBalances = classes("quizBalance");
+
+  quizBalances[0].textContent = new BigNumber(quizChosen.quizPool)
+    .shiftedBy(-ERC20_DECIMALS)
+    .toFixed(2);
+
+  quizBalances[1].textContent = new BigNumber(quizChosen.quizPool)
+    .shiftedBy(-ERC20_DECIMALS)
+    .toFixed(2);
+
+  let questionTags = classes("noOfQuestions");
+
+  questionTags[0].textContent = noOfQuestions;
+  questionTags[1].textContent = noOfQuestions;
+
   if (playerQuizState == 1) {
     id("rules-box").style.display = "none";
     id("end-quiz-box").style.display = "flex";
   }
 
   if (kit.defaultAccount != quizChosen.creator) {
-    let addquestionBtn = classes("addQuestion");
-    for (let i = 0; i < addquestionBtn.length; i++) {
-      addquestionBtn[i].style.display = "none";
+    let adminbtns = classes("adminBtns");
+    for (let i = 0; i < adminbtns.length; i++) {
+      adminbtns[i].style.display = "none";
     }
+  } else {
+    id("startBtn").style.display = "none";
   }
 
   remainingtimeForQuiz = quizChosen.totalTime;
@@ -294,26 +320,30 @@ let displayInitialData = (quizChosen) => {
   };
 
   // start quiz sequence
-  classes("start-quiz")[0].addEventListener("click", async () => {
-    if(quizChosen.creator == kit.defaultAccount){
-      notification(`⚠️ You can't participate in your quiz.`);
-      return;  
-    }
-    notification(`⌛ Starting Quiz...`);
-    let successful = await startQuiz(quizChosen.id);
-    if (successful) {
-      renderQuestion(quizChosen.questions[questionNumber]);
-      id("rules-box").style.display = "none";
-      id("question-box").style.display = "block";
+  classes("start-quiz")[0].addEventListener(
+    "click",
+    async () => {
+      notification(`⌛ Starting Quiz...`);
+      if (quizChosen.creator == kit.defaultAccount) {
+        notification(`⚠️ You can't participate in your quiz.`);
+        return;
+      }
+      let successful = await startQuiz(quizChosen.id);
+      if (successful) {
+        renderQuestion(quizChosen.questions[questionNumber]);
+        id("rules-box").style.display = "none";
+        id("question-box").style.display = "block";
 
-      id("quiz-time-left").innerHTML = remainingtimeForQuiz;
-      quiztimer = setTimeout(checkTimeForQuiz, 1000);
+        id("quiz-time-left").innerHTML = remainingtimeForQuiz;
+        quiztimer = setTimeout(checkTimeForQuiz, 1000);
 
-      id("question-time-left").innerHTML = remainingTimeForQuestion;
-      questionTimer = setTimeout(checkTimeforQuestion, 1000);
-    }
-    setTimeout(notificationOff(), 5000);
-  });
+        id("question-time-left").innerHTML = remainingTimeForQuestion;
+        questionTimer = setTimeout(checkTimeforQuestion, 1000);
+      }
+      setTimeout(notificationOff(), 5000);
+    },
+    { once: true }
+  );
 
   // next question sequence
   let nextQuestion = async () => {
@@ -334,7 +364,12 @@ let displayInitialData = (quizChosen) => {
         questionAnswersGiven
       );
 
-      const successful = await endQuiz(quizChosen.id, Math.round(userScore));
+      const successful = await endQuiz(
+        quizChosen.title,
+        quizChosen.id,
+        Math.round(userScore)
+      );
+
       if (successful) {
         sessionStorage.setItem("userScore", Math.round(userScore));
         window.location = "result.html";
@@ -385,29 +420,31 @@ let displayInitialData = (quizChosen) => {
   });
 
   // end quiz sequence
-  classes("end")[0].addEventListener("click", async () => {
-    notification(`⌛ Ending Quiz...`);
+  classes("end")[0].addEventListener(
+    "click",
+    async () => {
+      notification(`⌛ Ending Quiz...`);
 
-    let noOfQuestions = quizChosen.questions.length;
+      let noOfQuestions = quizChosen.questions.length;
 
-    if (!questionAnswersGiven) {
-      remainingtimeForQuiz = 0;
-    }
+      if (!questionAnswersGiven) {
+        remainingtimeForQuiz = 0;
+      }
 
-    const userScore = calcScore(
-      quizChosen.totalTime,
-      remainingtimeForQuiz,
-      noOfQuestions,
-      questionAnswersGiven
-    );
+      const userScore = calcScore(
+        quizChosen.totalTime,
+        remainingtimeForQuiz,
+        noOfQuestions,
+        questionAnswersGiven
+      );
+      const successful = await endQuiz(quizChosen.id, Math.round(userScore));
 
-    const successful = await endQuiz(quizChosen.id, Math.round(userScore));
-
-    if (successful) {
-      sessionStorage.setItem("userScore", Math.round(userScore));
-      window.location = "result.html";
-    }
-  });
+      if (successful) {
+        window.location = "result.html";
+      }
+    },
+    { once: true }
+  );
 
   // back home sequence
   classes("home")[0].addEventListener("click", async () => {
@@ -418,35 +455,93 @@ let displayInitialData = (quizChosen) => {
   });
 
   // add new question sequence
-  query("#newQuestionBtn").addEventListener("click", async (e) => {
-    e.preventDefault();
-    const params = [
-      quizChosen.id,
-      id("questionTitle").value,
-      [
-        id("option1").value,
-        id("option2").value,
-        id("option3").value,
-        id("option4").value,
-      ],
-      utf8ToBase64String(id("answer").value),
-    ];
-    notification(`⌛ Adding new Question...`);
-    try {
-      const result = await contract.methods
-        .addQuestion(...params)
-        .send({ from: kit.defaultAccount });
-      notification(`🎉 Question added successfully".`);
-      id("newQuestionForm").reset();
-    } catch (error) {
-      notification(`⚠️ ${error}.`);
-    }
-    loadQuestions(quizChosen.id);
-    getBalance();
-    setTimeout(function () {
-      notificationOff();
-    }, 5000);
-  });
+  query("#newQuestionBtn").addEventListener(
+    "click",
+    async (e) => {
+      console.log("fiiii");
+      e.preventDefault();
+      const params = [
+        quizChosen.id,
+        id("questionTitle").value,
+        [
+          id("option1").value,
+          id("option2").value,
+          id("option3").value,
+          id("option4").value,
+        ],
+        utf8ToBase64String(id("answer").value),
+      ];
+      notification(`⌛ Adding new Question...`);
+      try {
+        await contract.methods
+          .addQuestion(...params)
+          .send({ from: kit.defaultAccount });
+        notification(`🎉 Question added successfully".`);
+        id("newQuestionForm").reset();
+      } catch (error) {
+        notification(`⚠️ ${error}.`);
+      }
+      loadQuestions(quizChosen.id);
+      getBalance();
+      setTimeout(function () {
+        notificationOff();
+      }, 5000);
+    },
+    { once: true }
+  );
+
+  query("#fundQuizBtn").addEventListener(
+    "click",
+    async (e) => {
+      e.preventDefault();
+      notification(`⌛ Sending funds to Quiz...`);
+      try {
+        let amount = new BigNumber(id("amountToFund").value)
+          .shiftedBy(ERC20_DECIMALS)
+          .toString();
+        await contract.methods
+          .fundQuiz(quizChosen.id)
+          .send({ from: kit.defaultAccount, value: amount });
+        notification(`🎉 Quiz funded successfully".`);
+        id("fundQuizForm").reset();
+      } catch (error) {
+        notification(`⚠️ ${error}.`);
+      }
+      loadQuestions(quizChosen.id);
+      getBalance();
+      setTimeout(function () {
+        notificationOff();
+      }, 5000);
+    },
+    { once: true }
+  );
+
+  query("#withdrawFundsBtn").addEventListener(
+    "click",
+    async (e) => {
+      e.preventDefault();
+      notification(`⌛ Withdrawing funds from Quiz...`);
+      try {
+        let amount = new BigNumber(id("amountToWithdraw").value)
+          .shiftedBy(ERC20_DECIMALS)
+          .toString();
+
+        await contract.methods
+          .withdrawFunds(quizChosen.id, amount)
+          .send({ from: kit.defaultAccount });
+        notification(`🎉 Quiz funded successfully".`);
+        id("withdrawModalForm").reset();
+      } catch (error) {
+        notification(`⚠️ ${error}.`);
+      }
+      loadQuestions(quizChosen.id);
+      getBalance();
+      setTimeout(function () {
+        notificationOff();
+      }, 5000);
+    },
+    { once: true }
+  );
 };
 
 window.addEventListener("load", async () => {

@@ -136,6 +136,24 @@
         margin-top: 4%;
         width: 25%;
       }
+
+      .btnsize {
+        width: 200px;
+        margin-bottom: 3px;
+      }
+
+      .box-position {
+        position: relative;
+      }
+
+      .topcorner {
+        text-align: left;
+        margin-left: 15px;
+        width: 200px;
+        position: absolute;
+        top: 5%;
+        left: 0;
+      }
     </style>
     <title>Speed Quiz</title>
   </head>
@@ -170,34 +188,85 @@
         <span id="notification">⌛ Loading...</span>
       </div>
       <div class="container-box">
-        <div class="box" id="rules-box">
+        <div class="box box-position" id="rules-box">
+          <div class="topcorner">
+            <p class="adminBtns">
+              <b>Quiz Balance: </b><span class="quizBalance">0.0</span> CELO
+            </p>
+            <p><b>No of Questions: </b><span class="noOfQuestions">0</span></p>
+          </div>
           <h3>Rules:</h3>
           <p id="quiz-time"></p>
           <p id="question-time"></p>
+
           <div>
-            <button class="start-quiz btn btn-success">Start Quiz</button>
-            <button class="home btn btn btn-primary">Go Back Home</button>
+            <button id="startBtn" class="start-quiz btn btn-success btnsize">
+              Start Quiz
+            </button>
             <button
-              class="addQuestion btn btn-dark"
+              class="adminBtns btn btn-dark btnsize"
               data-bs-toggle="modal"
               data-bs-target="#addQuestionModal"
             >
               Add Questions
+            </button>
+            <button class="home btn btn btn-primary btnsize">
+              Go Back Home
+            </button>
+          </div>
+          <div>
+            <button
+              class="adminBtns btn btn-secondary btnsize"
+              data-bs-toggle="modal"
+              data-bs-target="#fundQuizModal"
+            >
+              Fund Quiz
+            </button>
+            <button
+              class="adminBtns btn btn-danger btnsize"
+              data-bs-toggle="modal"
+              data-bs-target="#withdrawModal"
+            >
+              Withdraw Funds
             </button>
           </div>
         </div>
 
-        <div class="box" id="info-box">
+        <div class="box box-position" id="info-box">
+          <div class="topcorner">
+            <p class="adminBtns">
+              <b>Quiz Balance: </b><span class="quizBalance">0.0</span> CELO
+            </p>
+            <p><b>No of Questions: </b><span class="noOfQuestions">0 </span></p>
+          </div>
           <h4>Sorry this Quiz is not yet available</h4>
           <div>
             <button
-              class="addQuestion btn btn-dark"
+              class="adminBtns btn btn-dark btnsize"
               data-bs-toggle="modal"
               data-bs-target="#addQuestionModal"
             >
               Add Questions
             </button>
-            <button class="home btn btn btn-primary">Go Back Home</button>
+            <button class="home btn btn btn-primary btnsize">
+              Go Back Home
+            </button>
+          </div>
+          <div>
+            <button
+              class="adminBtns btn btn-secondary btnsize"
+              data-bs-toggle="modal"
+              data-bs-target="#fundQuizModal"
+            >
+              Fund Quiz
+            </button>
+            <button
+              class="adminBtns btn btn-danger btnsize"
+              data-bs-toggle="modal"
+              data-bs-target="#withdrawModal"
+            >
+              Withdraw Funds
+            </button>
           </div>
         </div>
 
@@ -313,6 +382,115 @@
               id="newQuestionBtn"
             >
               Add Question
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!--/Fund Quiz Modal-->
+    <div
+      class="modal fade"
+      id="fundQuizModal"
+      tabindex="-1"
+      aria-labelledby="fundQuizModal"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="fundQuizModal">Fund Quiz</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <form id="fundQuizForm">
+              <div class="form-row">
+                <div class="col">
+                  <input
+                    type="number"
+                    id="amountToFund"
+                    class="form-control mb-2"
+                    placeholder="Enter Amount"
+                  />
+                </div>
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-light border"
+              data-bs-dismiss="modal"
+            >
+              Close
+            </button>
+            <button
+              type="button"
+              class="btn btn-dark"
+              data-bs-dismiss="modal"
+              id="fundQuizBtn"
+            >
+              Fund
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!--/Withdraw Modal-->
+    <div
+      class="modal fade"
+      id="withdrawModal"
+      tabindex="-1"
+      aria-labelledby="withdrawModal"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="withdrawModal">Withdraw Funds</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <form id="withdrawModalForm">
+              <span class="quizBalance"></span>
+              <div class="form-row">
+                <div class="col">
+                  <input
+                    type="number"
+                    id="amountToWithdraw"
+                    class="form-control mb-2"
+                    placeholder="Enter Amount"
+                  />
+                </div>
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-light border"
+              data-bs-dismiss="modal"
+            >
+              Close
+            </button>
+            <button
+              type="button"
+              class="btn btn-dark"
+              data-bs-dismiss="modal"
+              id="withdrawFundsBtn"
+            >
+              Withdraw
             </button>
           </div>
         </div>
