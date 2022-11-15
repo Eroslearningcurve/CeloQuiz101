@@ -29,6 +29,7 @@ contract SpeedQuiz {
         uint256 totalTime;
         uint256 successfulAttempts;
         uint256 noOfQuizAttempts;
+        uint256 downvotes;
     }
 
     struct Scores {
@@ -123,11 +124,15 @@ contract SpeedQuiz {
     function addPlayer() internal {
         isPlayer[msg.sender] = true;
     }
-
+    
     /**
      * @dev allow users to participate into quizzes and potentially win a reward
      * @notice a fee needs to be paid to participate in the quiz
      */
+    function downVote(uint256 _quizId)public checkIfQuizExists(_quizId){
+        quizzes[_quizId].downvotes++;
+    }
+
     function startQuiz(uint256 _quizId)
         public
         payable
@@ -174,6 +179,10 @@ contract SpeedQuiz {
             require(success, "Transfer failed");
             quiz.successfulAttempts++;
         }
+    }
+
+    function deleteQuiz(uint256 _quizId)public checkIfCreator(_quizId){
+        delete quizzes[_quizId];
     }
 
     function getPlayerHistory(address _player)
